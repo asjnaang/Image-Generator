@@ -312,26 +312,36 @@ def select_multiple_models():
 def detect_device():
     if torch.cuda.is_available():
         device = "cuda"
-        dtype = torch.float16
         device_name = f"CUDA ({torch.cuda.get_device_name(0)})"
     elif torch.backends.mps.is_available():
         device = "mps"
-        # Use float32 on MPS - float16/bfloat16 causes NaN in VAE decoder
-        dtype = torch.float32
         device_name = "Apple Silicon (MPS)"
     else:
         device = "cpu"
-        dtype = torch.float32
         device_name = "CPU"
 
     print(f"🖥️  Device: {device_name}")
-    return device, dtype
+    return device, device_name
 
-def load_pipeline(model_info, device, dtype):
+def load_pipeline(model_info, device, dtype=None):
     model_id = model_info["id"]
     model_type = model_info["type"]
 
+    # Determine optimal dtype based on model type and device
+    if dtype is None:
+        if model_type in ["flux", "flux-gguf"]:
+            # FLUX models work best with bfloat16 on all devices
+            dtype = torch.bfloat16
+        elif device == "cuda":
+            dtype = torch.float16
+        elif device == "mps":
+            # SD 1.5 and SDXL work well with float32 on MPS
+            dtype = torch.float32
+        else:
+            dtype = torch.float32
+
     print(f"\n🔄 Loading: {model_info['name']}")
+    print(f"   🔧 Device: {device} | Precision: {dtype}")
 
     if model_type == "flux-gguf":
         gguf_file = model_info["gguf_file"]
@@ -377,6 +387,7 @@ def load_pipeline(model_info, device, dtype):
 
     pipe = pipe.to(device)
 
+    # Apply optimizations based on model type
     if model_type == "flux-gguf":
         pipe.enable_model_cpu_offload()
         if hasattr(pipe, "vae"):
@@ -384,6 +395,7 @@ def load_pipeline(model_info, device, dtype):
             pipe.vae.enable_tiling()
         print("   🔧 Applied GGUF memory optimizations")
     elif model_type != "flux":
+        # SD 1.5 and SDXL optimizations
         pipe.enable_attention_slicing()
         if device == "mps":
             pipe.enable_model_cpu_offload()
@@ -391,11 +403,11 @@ def load_pipeline(model_info, device, dtype):
     print(f"✅ Loaded!\n")
     return pipe
 
-def generate_with_model(model_info, prompts, base_output_dir, device, dtype, multi_mode=False, resolution_mode=("default", None, None)):
+def generate_with_model(model_info, prompts, base_output_dir, device, multi_mode=False, resolution_mode=("default", None, None)):
     output_dir = os.path.join(base_output_dir, model_info["folder_name"]) if multi_mode else base_output_dir
     os.makedirs(output_dir, exist_ok=True)
 
-    pipe = load_pipeline(model_info, device, dtype)
+    pipe = load_pipeline(model_info, device)
 
     steps = model_info["steps"]
     model_type = model_info["type"]
@@ -483,7 +495,7 @@ def main(json_path, output_dir="assets/foods", multi_mode=False):
     prompts = load_prompts(json_path)
     print(f"✅ {len(prompts)} prompts loaded")
 
-    device, dtype = detect_device()
+    device, device_name = detect_device()
 
     if multi_mode:
         selected_models = select_multiple_models()
@@ -503,7 +515,7 @@ def main(json_path, output_dir="assets/foods", multi_mode=False):
             print(f"MODEL {model_idx}/{len(selected_models)}")
             print("🔹"*80 + "\n")
 
-        success, errors = generate_with_model(model_info, prompts, output_dir, device, dtype, multi_mode, resolution_mode)
+        success, errors = generate_with_model(model_info, prompts, output_dir, device, multi_mode, resolution_mode)
 
         total_success += success
         total_error += errors
