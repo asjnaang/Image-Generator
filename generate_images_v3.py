@@ -1,9 +1,14 @@
 """
-Stable Diffusion Image Batch Generator v3 - CLEAN VERSION
+Stable Diffusion Image Batch Generator v4.0 - WITH ASPECT RATIO CONTROL
 Optimized for M1 Pro 32GB | Cross-platform: Mac (MPS), NVIDIA (CUDA), CPU
-With FLUX.1-schnell support - Only working models included
+With FLUX.1-schnell support and custom aspect ratios
 
-Version: 3.1 - Cleaned, only verified working models
+Version: 4.0 - Added aspect ratio control, poster generation support
+Features:
+- 7 verified working models (SD 1.5, SDXL, FLUX) + 1 broken (GGUF - awaiting fix)
+- Custom aspect ratios (square, portrait, landscape, cinematic)
+- Per-prompt resolution control via JSON
+- Model info display (size, access type)
 """
 
 import os
@@ -125,7 +130,7 @@ MODELS = {
         "max_resolution": 1536
     },
     "8": {
-        "name": "Chroma-GGUF Q5 (FLUX-based, Memory Efficient)",
+        "name": "Chroma-GGUF Q5 ⚠️ CURRENTLY BROKEN",
         "id": "silveroxides/Chroma-GGUF",
         "gguf_file": "chroma-unlocked-v27/chroma-unlocked-v27-Q5_0.gguf",
         "base_model": "black-forest-labs/FLUX.1-schnell",
@@ -136,10 +141,11 @@ MODELS = {
         "folder_name": "chroma-gguf-q5",
         "size": "7.1GB",
         "access": "Open",
-        "description": "FLUX-based 8.9B model with GGUF quantization for lower VRAM usage",
+        "description": "⚠️ GGUF loader incompatibility - KeyError: 'time_in.in_layer.weight' - awaiting diffusers fix",
         "supports_aspect_ratios": True,
         "min_resolution": 512,
-        "max_resolution": 2048
+        "max_resolution": 2048,
+        "status": "broken"
     }
 }
 
@@ -154,8 +160,118 @@ ASPECT_RATIOS = {
 }
 
 def load_prompts(json_path):
+    """Load prompts from JSON file.
+
+    Format can be:
+    1. Simple: {"image_name": "prompt text"}
+    2. Advanced: {"image_name": {"prompt": "text", "aspect_ratio": "portrait", "base_resolution": 1024}}
+    """
     with open(json_path, "r", encoding="utf-8") as f:
-        return json.load(f)
+        data = json.load(f)
+
+    # Normalize to advanced format
+    prompts = {}
+    for key, value in data.items():
+        if isinstance(value, str):
+            prompts[key] = {"prompt": value, "aspect_ratio": "square", "base_resolution": None}
+        else:
+            prompts[key] = {
+                "prompt": value.get("prompt", ""),
+                "aspect_ratio": value.get("aspect_ratio", "square"),
+                "base_resolution": value.get("base_resolution", None)
+            }
+
+    return prompts
+
+def calculate_resolution(aspect_ratio_key, base_resolution, model_info):
+    """Calculate width and height based on aspect ratio and base resolution.
+
+    Args:
+        aspect_ratio_key: Key from ASPECT_RATIOS (e.g., "portrait", "landscape")
+        base_resolution: Base resolution (height for portrait, width for landscape, or side for square)
+        model_info: Model information dict with min/max resolution constraints
+
+    Returns:
+        (width, height) tuple
+    """
+    if aspect_ratio_key not in ASPECT_RATIOS:
+        aspect_ratio_key = "square"
+
+    ratio = ASPECT_RATIOS[aspect_ratio_key]["ratio"]
+
+    # If no base resolution specified, use model default
+    if base_resolution is None:
+        return model_info["resolution"]
+
+    # Constrain to model limits
+    min_res = model_info["min_resolution"]
+    max_res = model_info["max_resolution"]
+    base_resolution = max(min_res, min(max_res, base_resolution))
+
+    # Calculate dimensions based on aspect ratio
+    if ratio == 1.0:  # Square
+        width = height = base_resolution
+    elif ratio < 1.0:  # Portrait (height > width)
+        height = base_resolution
+        width = int(height * ratio)
+    else:  # Landscape (width > height)
+        width = base_resolution
+        height = int(width / ratio)
+
+    # Ensure dimensions are divisible by 8 (requirement for diffusion models)
+    width = (width // 8) * 8
+    height = (height // 8) * 8
+
+    # Final constraint check
+    width = max(min_res, min(max_res, width))
+    height = max(min_res, min(max_res, height))
+
+    return (width, height)
+
+def select_resolution_mode():
+    """Let user choose resolution/aspect ratio mode."""
+    print("\n" + "="*80)
+    print("RESOLUTION MODE")
+    print("="*80)
+    print("1. Use JSON-defined resolutions (prompts can specify custom aspect ratios)")
+    print("2. Override all with single aspect ratio")
+    print("3. Use model defaults (ignore JSON aspect ratios)")
+    print("="*80)
+
+    while True:
+        choice = input("\nSelect mode (1-3, recommend 1): ").strip()
+        if choice in ["1", "2", "3"]:
+            if choice == "2":
+                # Show aspect ratio options
+                print("\n" + "="*80)
+                print("ASPECT RATIOS")
+                print("="*80)
+                for idx, (key, info) in enumerate(ASPECT_RATIOS.items(), 1):
+                    print(f"{idx}. {info['name']} - Ratio: {info['ratio']:.2f}")
+                print("="*80)
+
+                while True:
+                    ar_choice = input("\nSelect aspect ratio (1-6): ").strip()
+                    try:
+                        ar_idx = int(ar_choice) - 1
+                        if 0 <= ar_idx < len(ASPECT_RATIOS):
+                            ar_key = list(ASPECT_RATIOS.keys())[ar_idx]
+
+                            # Ask for base resolution
+                            base_res = input("Enter base resolution (e.g., 1024): ").strip()
+                            try:
+                                base_res = int(base_res)
+                                return ("override", ar_key, base_res)
+                            except ValueError:
+                                print("❌ Invalid resolution number")
+                        else:
+                            print("❌ Invalid choice")
+                    except ValueError:
+                        print("❌ Invalid input")
+
+            return ("json" if choice == "1" else "default", None, None)
+
+        print("❌ Invalid. Please select 1-3.")
 
 def select_single_model():
     print("\n" + "="*80)
@@ -200,7 +316,8 @@ def detect_device():
         device_name = f"CUDA ({torch.cuda.get_device_name(0)})"
     elif torch.backends.mps.is_available():
         device = "mps"
-        dtype = torch.bfloat16
+        # Use float32 on MPS - float16/bfloat16 causes NaN in VAE decoder
+        dtype = torch.float32
         device_name = "Apple Silicon (MPS)"
     else:
         device = "cpu"
@@ -247,16 +364,16 @@ def load_pipeline(model_info, device, dtype):
     elif model_type == "flux":
         pipe = FluxPipeline.from_pretrained(model_id, torch_dtype=dtype)
     elif model_type == "sdxl":
-        if dtype == torch.float16:
-            pipe = StableDiffusionXLPipeline.from_pretrained(
-                model_id, torch_dtype=dtype, use_safetensors=True, variant="fp16"
-            )
-        else:
-            pipe = StableDiffusionXLPipeline.from_pretrained(
-                model_id, torch_dtype=dtype, use_safetensors=True
-            )
+        pipe = StableDiffusionXLPipeline.from_pretrained(
+            model_id, torch_dtype=dtype, use_safetensors=True
+        )
     else:  # sd15
-        pipe = StableDiffusionPipeline.from_pretrained(model_id, torch_dtype=dtype)
+        pipe = StableDiffusionPipeline.from_pretrained(
+            model_id,
+            torch_dtype=dtype,
+            safety_checker=None,
+            requires_safety_checker=False
+        )
 
     pipe = pipe.to(device)
 
@@ -274,36 +391,56 @@ def load_pipeline(model_info, device, dtype):
     print(f"✅ Loaded!\n")
     return pipe
 
-def generate_with_model(model_info, prompts, base_output_dir, device, dtype, multi_mode=False):
+def generate_with_model(model_info, prompts, base_output_dir, device, dtype, multi_mode=False, resolution_mode=("default", None, None)):
     output_dir = os.path.join(base_output_dir, model_info["folder_name"]) if multi_mode else base_output_dir
     os.makedirs(output_dir, exist_ok=True)
 
     pipe = load_pipeline(model_info, device, dtype)
 
-    height, width = model_info["resolution"]
     steps = model_info["steps"]
     model_type = model_info["type"]
 
     print("="*80)
     print(f"🎨 GENERATING: {model_info['name']}")
     print(f"📁 Output: {output_dir}")
-    print(f"📐 {width}x{height} | {steps} steps | {len(prompts)} images")
+    print(f"🔧 Resolution Mode: {resolution_mode[0]}")
+    print(f"📐 {steps} steps | {len(prompts)} images")
     print("="*80 + "\n")
 
     success_count = 0
     error_count = 0
 
-    for idx, (filename, prompt) in enumerate(prompts.items(), 1):
-        print(f"[{idx}/{len(prompts)}] {filename}.png")
-        print(f"💬 {prompt[:80]}{'...' if len(prompt) > 80 else ''}")
+    for idx, (filename, prompt_data) in enumerate(prompts.items(), 1):
+        # Extract prompt text and resolution info
+        if isinstance(prompt_data, str):
+            prompt_text = prompt_data
+            aspect_ratio = "square"
+            base_res = None
+        else:
+            prompt_text = prompt_data["prompt"]
+            aspect_ratio = prompt_data.get("aspect_ratio", "square")
+            base_res = prompt_data.get("base_resolution", None)
+
+        # Determine resolution based on mode
+        mode, override_ar, override_res = resolution_mode
+        if mode == "override":
+            width, height = calculate_resolution(override_ar, override_res, model_info)
+        elif mode == "json":
+            width, height = calculate_resolution(aspect_ratio, base_res, model_info)
+        else:  # default
+            width, height = model_info["resolution"]
+
+        print(f"[{idx}/{len(prompts)}] {filename}.png ({width}x{height})")
+        print(f"💬 {prompt_text[:80]}{'...' if len(prompt_text) > 80 else ''}")
 
         try:
             generator = torch.Generator("cpu" if device == "mps" else device).manual_seed(42)
 
             if model_type in ["flux", "flux-gguf"]:
                 # FLUX models (including GGUF quantized)
+                # Note: Removed automatic 512x512 resize to preserve aspect ratio
                 image = pipe(
-                    prompt,
+                    prompt_text,
                     num_inference_steps=steps,
                     guidance_scale=3.5 if model_type == "flux-gguf" else 0.0,
                     height=height,
@@ -311,13 +448,10 @@ def generate_with_model(model_info, prompts, base_output_dir, device, dtype, mul
                     max_sequence_length=256,
                     generator=generator
                 ).images[0]
-
-                from PIL import Image
-                image = image.resize((512, 512), Image.Resampling.LANCZOS)
             else:
                 # SD 1.5 / SDXL models
                 image = pipe(
-                    prompt,
+                    prompt_text,
                     num_inference_steps=steps,
                     guidance_scale=7.5,
                     height=height,
@@ -357,6 +491,9 @@ def main(json_path, output_dir="assets/foods", multi_mode=False):
     else:
         selected_models = select_single_model()
 
+    # Select resolution mode
+    resolution_mode = select_resolution_mode()
+
     total_success = 0
     total_error = 0
 
@@ -366,7 +503,7 @@ def main(json_path, output_dir="assets/foods", multi_mode=False):
             print(f"MODEL {model_idx}/{len(selected_models)}")
             print("🔹"*80 + "\n")
 
-        success, errors = generate_with_model(model_info, prompts, output_dir, device, dtype, multi_mode)
+        success, errors = generate_with_model(model_info, prompts, output_dir, device, dtype, multi_mode, resolution_mode)
 
         total_success += success
         total_error += errors
@@ -385,7 +522,7 @@ def main(json_path, output_dir="assets/foods", multi_mode=False):
 if __name__ == "__main__":
     if len(sys.argv) < 2:
         print("\n" + "="*80)
-        print("Image Generator v3.1 - FLUX + Stable Diffusion")
+        print("Image Generator v4.0 - FLUX + Stable Diffusion + Aspect Ratios")
         print("="*80)
         print("\nUsage:")
         print("  python generate_images_v3.py <prompts.json> [output_dir] [multi]")
@@ -393,8 +530,19 @@ if __name__ == "__main__":
         print("  python generate_images_v3.py food_prompts.json")
         print("  python generate_images_v3.py food_prompts.json assets/")
         print("  python generate_images_v3.py food_prompts.json assets/ multi")
+        print("  python generate_images_v3.py sample_poster_prompts.json posters/")
+        print("\nJSON Format:")
+        print('  Simple:  {"name": "prompt text"}')
+        print('  Advanced: {"name": {"prompt": "text", "aspect_ratio": "portrait", "base_resolution": 1024}}')
+        print("\nAspect Ratios:")
+        print("  square, portrait (2:3), portrait_wide (3:4), landscape (3:2),")
+        print("  landscape_wide (16:9), cinematic (21:9)")
         print("\nRecommended:")
         print("  Model 2 (FLUX.1-schnell) - Best quality, fastest, 512 token prompts")
+        print("\n⚠️  Known Issues:")
+        print("  Model 8 (Chroma-GGUF) - BROKEN: GGUF incompatibility, awaiting diffusers fix")
+        print("\nModel Sizes:")
+        print("  SD 1.5: ~5GB | SDXL: ~14GB | FLUX: ~34GB")
         print("\n" + "="*80)
         sys.exit(1)
 
