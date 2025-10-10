@@ -27,7 +27,12 @@ MODELS = {
         "steps": 40,
         "max_tokens": 77,
         "folder_name": "sd-v1.5",
-        "description": "Fastest, lightweight, good for testing"
+        "size": "5.5GB",
+        "access": "Open",
+        "description": "Fastest, lightweight, good for testing",
+        "supports_aspect_ratios": True,
+        "min_resolution": 512,
+        "max_resolution": 768
     },
     "2": {
         "name": "FLUX.1-schnell (Ultra Fast, Highest Quality)",
@@ -37,7 +42,12 @@ MODELS = {
         "steps": 4,
         "max_tokens": 512,
         "folder_name": "flux-schnell",
-        "description": "RECOMMENDED - Best quality, 4 steps, 512 token prompts"
+        "size": "33.7GB",
+        "access": "Open",
+        "description": "RECOMMENDED - Best quality, 4 steps, 512 token prompts",
+        "supports_aspect_ratios": True,
+        "min_resolution": 512,
+        "max_resolution": 2048
     },
     "3": {
         "name": "Realistic Vision v5.1 (Photorealistic)",
@@ -47,7 +57,12 @@ MODELS = {
         "steps": 40,
         "max_tokens": 77,
         "folder_name": "realistic-vision-v5.1",
-        "description": "Best for realistic food photography"
+        "size": "4.3GB",
+        "access": "Open",
+        "description": "Best for realistic food photography",
+        "supports_aspect_ratios": True,
+        "min_resolution": 512,
+        "max_resolution": 768
     },
     "4": {
         "name": "DreamShaper v8 (Versatile, High Quality)",
@@ -57,7 +72,12 @@ MODELS = {
         "steps": 40,
         "max_tokens": 77,
         "folder_name": "dreamshaper-v8",
-        "description": "Great all-rounder, artistic and realistic"
+        "size": "5.5GB",
+        "access": "Open",
+        "description": "Great all-rounder, artistic and realistic",
+        "supports_aspect_ratios": True,
+        "min_resolution": 512,
+        "max_resolution": 768
     },
     "5": {
         "name": "Counterfeit v2.5 (Photorealistic Details)",
@@ -67,7 +87,12 @@ MODELS = {
         "steps": 40,
         "max_tokens": 77,
         "folder_name": "counterfeit-v2.5",
-        "description": "Excellent detail and faces"
+        "size": "4.3GB",
+        "access": "Open",
+        "description": "Excellent detail and faces",
+        "supports_aspect_ratios": True,
+        "min_resolution": 512,
+        "max_resolution": 768
     },
     "6": {
         "name": "Playground v2.5 (Best Aesthetics)",
@@ -77,7 +102,12 @@ MODELS = {
         "steps": 30,
         "max_tokens": 77,
         "folder_name": "playground-v2.5",
-        "description": "Beautiful aesthetic quality"
+        "size": "13.9GB",
+        "access": "Open",
+        "description": "Beautiful aesthetic quality",
+        "supports_aspect_ratios": True,
+        "min_resolution": 512,
+        "max_resolution": 1536
     },
     "7": {
         "name": "SDXL Base 1.0 (High Quality, Slower)",
@@ -87,7 +117,12 @@ MODELS = {
         "steps": 30,
         "max_tokens": 77,
         "folder_name": "sdxl-base-1.0",
-        "description": "High quality SDXL, slower generation"
+        "size": "14.2GB",
+        "access": "Open",
+        "description": "High quality SDXL, slower generation",
+        "supports_aspect_ratios": True,
+        "min_resolution": 512,
+        "max_resolution": 1536
     },
     "8": {
         "name": "Chroma-GGUF Q5 (FLUX-based, Memory Efficient)",
@@ -99,8 +134,23 @@ MODELS = {
         "steps": 20,
         "max_tokens": 512,
         "folder_name": "chroma-gguf-q5",
-        "description": "FLUX-based 8.9B model with GGUF quantization for lower VRAM usage"
+        "size": "7.1GB",
+        "access": "Open",
+        "description": "FLUX-based 8.9B model with GGUF quantization for lower VRAM usage",
+        "supports_aspect_ratios": True,
+        "min_resolution": 512,
+        "max_resolution": 2048
     }
+}
+
+# Predefined aspect ratios for poster/image generation
+ASPECT_RATIOS = {
+    "square": {"name": "Square (1:1)", "ratio": 1.0},
+    "portrait": {"name": "Portrait (2:3)", "ratio": 2/3},
+    "portrait_wide": {"name": "Portrait Wide (3:4)", "ratio": 3/4},
+    "landscape": {"name": "Landscape (3:2)", "ratio": 3/2},
+    "landscape_wide": {"name": "Landscape Wide (16:9)", "ratio": 16/9},
+    "cinematic": {"name": "Cinematic (21:9)", "ratio": 21/9}
 }
 
 def load_prompts(json_path):
@@ -113,8 +163,8 @@ def select_single_model():
     print("="*80)
     for key, model in MODELS.items():
         print(f"\n{key}. {model['name']}")
-        print(f"   Resolution: {model['resolution'][0]}x{model['resolution'][1]} | "
-              f"Tokens: {model['max_tokens']} | Steps: {model['steps']}")
+        print(f"   Size: {model['size']} | Access: {model['access']} | Tokens: {model['max_tokens']} | Steps: {model['steps']}")
+        print(f"   Resolution: {model['min_resolution']}-{model['max_resolution']}px | Default: {model['resolution'][0]}x{model['resolution'][1]}")
         print(f"   {model['description']}")
 
     print("\n" + "="*80)
@@ -130,7 +180,7 @@ def select_multiple_models():
     print("MULTI MODEL MODE - Compare multiple models")
     print("="*80)
     for key, model in MODELS.items():
-        print(f"{key}. {model['name']} → {model['folder_name']}/")
+        print(f"{key}. {model['name']} ({model['size']}) → {model['folder_name']}/")
 
     print("="*80)
 
