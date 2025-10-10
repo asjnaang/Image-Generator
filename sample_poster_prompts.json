@@ -1,0 +1,27 @@
+{
+  "sunset_mountain_square": {
+    "prompt": "A breathtaking sunset over majestic snow-capped mountains, vibrant orange and pink sky with wispy clouds, dramatic lighting, golden hour glow, serene alpine landscape, professional nature photography, high detail, 8k quality, stunning vista",
+    "aspect_ratio": "square",
+    "base_resolution": 1024
+  },
+  "forest_path_portrait": {
+    "prompt": "A peaceful winding forest path through tall ancient trees, dappled sunlight filtering through dense green canopy, moss-covered ground, ethereal morning mist, tranquil woodland atmosphere, natural beauty, photorealistic, high resolution, serene nature scene",
+    "aspect_ratio": "portrait",
+    "base_resolution": 1024
+  },
+  "ocean_waves_landscape": {
+    "prompt": "Powerful ocean waves crashing on pristine sandy beach at golden hour, dramatic sea spray, warm sunset lighting, turquoise water, foam and texture, coastal seascape, dynamic motion, professional seascape photography, vivid colors, high detail",
+    "aspect_ratio": "landscape",
+    "base_resolution": 1536
+  },
+  "city_skyline_portrait_wide": {
+    "prompt": "Modern metropolitan city skyline at night, illuminated glass skyscrapers reflecting lights, vibrant urban landscape, deep blue twilight sky, glowing windows, architectural photography, sharp details, long exposure effect, contemporary cityscape, stunning urban vista",
+    "aspect_ratio": "portrait_wide",
+    "base_resolution": 1024
+  },
+  "flower_garden_cinematic": {
+    "prompt": "Vibrant colorful flower garden in full bloom, red roses, yellow tulips, purple lavender, orange marigolds, butterflies dancing among flowers, lush green foliage, soft natural lighting, botanical beauty, macro photography style, rich colors, peaceful garden scene",
+    "aspect_ratio": "cinematic",
+    "base_resolution": 1536
+  }
+}
