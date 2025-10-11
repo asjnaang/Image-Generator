@@ -11,7 +11,7 @@ A powerful, professional-grade image generation tool that runs **completely offl
 ## 📚 Documentation
 
 - **[Installation Guide](INSTALLATION.md)** - System requirements, dependencies, and setup
-- **[Model Reference](MODELS.md)** - All available models, sizes, and capabilities
+- **[Models & Comparison](MODELS_AND_COMPARISON.md)** - Complete model reference with visual quality comparisons
 - **[Usage Guide](USAGE.md)** - How to use the tool, examples, and tips
 - **[Troubleshooting](TROUBLESHOOTING.md)** - Common issues and solutions
 
@@ -21,13 +21,13 @@ A powerful, professional-grade image generation tool that runs **completely offl
 
 ```bash
 # Simple generation (uses simple_prompts.json)
-python generate_images_v3.py simple_prompts.json output/
+python generate_images.py simple_prompts.json output/
 
 # With custom aspect ratios (uses sample_poster_prompts.json)
-python generate_images_v3.py sample_poster_prompts.json output/
+python generate_images.py sample_poster_prompts.json output/
 
 # Compare multiple models
-python generate_images_v3.py sample_poster_prompts.json output/ multi
+python generate_images.py sample_poster_prompts.json output/ multi
 ```
 
 **First time?** Check the [Installation Guide](INSTALLATION.md) for setup instructions.
@@ -54,13 +54,19 @@ Both files use detailed, descriptive prompts (~77 tokens) for better image quali
 - No data collection or tracking
 
 ### 🎨 **7 Working AI Models**
-From lightweight (4GB) to ultra-quality (34GB). See [Model Reference](MODELS.md) for details.
+From lightweight (4GB) to ultra-quality (34GB). Each model specializes in different strengths - photorealism, artistic style, speed, or maximum quality. See [Models & Comparison](MODELS_AND_COMPARISON.md) for visual examples.
+
+### 🚀 **Multi-Dimensional Generation**
+This tool goes far beyond simple single-image generation:
+- **One idea → Multiple variations**: Express concepts through different prompt perspectives
+- **Batch everything**: Process multiple ideas × multiple prompts × multiple models × multiple aspect ratios - all in one execution
+- **Compare models instantly**: Run the same prompts through all 7 models simultaneously to find the perfect match
 
 ### 📐 **Custom Aspect Ratios**
 Square, Portrait, Landscape, Cinematic, and more. Per-image resolution control via JSON.
 
-### ⚡ **Batch Processing**
-Generate 10, 50, 100+ images unattended. Multi-model comparison mode included.
+### ⚡ **Maximum Efficiency**
+No sequential processing - everything runs in parallel. Generate dozens of variations while you grab coffee.
 
 ---
 
@@ -88,15 +94,15 @@ Generate 10, 50, 100+ images unattended. Multi-model comparison mode included.
 
 ```
 docs/images/
-├── generate_images_v3.py          # Main script
+├── generate_images.py              # Main script
 ├── README.md                       # This file (overview)
 ├── INSTALLATION.md                 # Setup guide
 ├── MODELS.md                       # Model reference
 ├── USAGE.md                        # Usage examples
 ├── TROUBLESHOOTING.md              # Common issues
 ├── simple_prompts.json             # Simple example (5 basic prompts)
-├── sample_poster_prompts.json     # Advanced example (custom aspect ratios)
-└── [output folders]/              # Generated images
+├── sample_poster_prompts.json      # Advanced example (custom aspect ratios)
+└── assets/[output folders]/        # Generated images
 ```
 
 ---
@@ -121,6 +127,17 @@ docs/images/
 - Added FLUX.1-schnell support
 - Multi-model comparison mode
 - Cross-platform device detection
+
+---
+
+## 🤝 Contributing
+
+**Found a better model?** We welcome improvements! See our **[Models & Comparison Guide](MODELS_AND_COMPARISON.md#-contribute--improve)** for:
+- How to test new models with `sample_poster_prompts.json`
+- PR requirements (code, outputs, metrics, documentation)
+- Performance benchmarking guidelines
+
+Help the community discover better models for image generation! 🎨
 
 ---
 
