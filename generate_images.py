@@ -15,6 +15,7 @@ import os
 import json
 import sys
 import warnings
+import time
 import torch
 from diffusers import StableDiffusionPipeline, StableDiffusionXLPipeline, FluxPipeline, FluxTransformer2DModel, GGUFQuantizationConfig
 from huggingface_hub import hf_hub_download
@@ -385,28 +386,55 @@ def load_pipeline(model_info, device, dtype=None):
             requires_safety_checker=False
         )
 
-    pipe = pipe.to(device)
-
-    # Apply optimizations based on model type
-    if model_type == "flux-gguf":
+    # Apply memory optimizations BEFORE moving to device
+    if model_type == "flux" and device == "mps":
+        # FLUX on Apple Silicon MPS requires aggressive memory optimization
+        print("   🔧 Applying FLUX MPS memory optimizations...")
+        pipe.enable_sequential_cpu_offload()  # Move entire models to GPU (not just layers)
+        if hasattr(pipe, "vae"):
+            pipe.vae.enable_slicing()  # Process VAE in slices
+            pipe.vae.enable_tiling()   # Process VAE in tiles
+        print("   ✅ Sequential CPU offload + VAE optimizations enabled")
+    elif model_type == "flux-gguf":
         pipe.enable_model_cpu_offload()
         if hasattr(pipe, "vae"):
             pipe.vae.enable_slicing()
             pipe.vae.enable_tiling()
         print("   🔧 Applied GGUF memory optimizations")
+        pipe = pipe.to(device)
     elif model_type != "flux":
+        pipe = pipe.to(device)
         # SD 1.5 and SDXL optimizations
         pipe.enable_attention_slicing()
         if device == "mps":
             pipe.enable_model_cpu_offload()
+    else:
+        # FLUX on non-MPS devices
+        pipe = pipe.to(device)
 
     print(f"✅ Loaded!\n")
     return pipe
 
+def format_time(seconds):
+    """Format seconds into human-readable time string."""
+    if seconds < 60:
+        return f"{seconds:.1f}s"
+    elif seconds < 3600:
+        mins = int(seconds // 60)
+        secs = seconds % 60
+        return f"{mins}m {secs:.1f}s"
+    else:
+        hours = int(seconds // 3600)
+        mins = int((seconds % 3600) // 60)
+        secs = seconds % 60
+        return f"{hours}h {mins}m {secs:.1f}s"
+
 def generate_with_model(model_info, prompts, base_output_dir, device, multi_mode=False, resolution_mode=("default", None, None)):
-    output_dir = os.path.join(base_output_dir, model_info["folder_name"]) if multi_mode else base_output_dir
+    # Always organize by model folder for better organization
+    output_dir = os.path.join(base_output_dir, model_info["folder_name"])
     os.makedirs(output_dir, exist_ok=True)
 
+    model_start_time = time.time()
     pipe = load_pipeline(model_info, device)
 
     steps = model_info["steps"]
@@ -421,6 +449,7 @@ def generate_with_model(model_info, prompts, base_output_dir, device, multi_mode
 
     success_count = 0
     error_count = 0
+    total_image_time = 0
 
     for idx, (filename, prompt_data) in enumerate(prompts.items(), 1):
         # Extract prompt text and resolution info
@@ -445,12 +474,12 @@ def generate_with_model(model_info, prompts, base_output_dir, device, multi_mode
         print(f"[{idx}/{len(prompts)}] {filename}.png ({width}x{height})")
         print(f"💬 {prompt_text[:80]}{'...' if len(prompt_text) > 80 else ''}")
 
+        image_start_time = time.time()
         try:
             generator = torch.Generator("cpu" if device == "mps" else device).manual_seed(42)
 
             if model_type in ["flux", "flux-gguf"]:
-                # FLUX models (including GGUF quantized)
-                # Note: Removed automatic 512x512 resize to preserve aspect ratio
+                # FLUX models - with proper memory optimizations should handle high resolutions
                 image = pipe(
                     prompt_text,
                     num_inference_steps=steps,
@@ -474,12 +503,16 @@ def generate_with_model(model_info, prompts, base_output_dir, device, multi_mode
             output_path = os.path.join(output_dir, f"{filename}.png")
             image.save(output_path, optimize=True, quality=95)
 
+            image_time = time.time() - image_start_time
+            total_image_time += image_time
             file_size = os.path.getsize(output_path)
-            print(f"✅ {file_size // 1024} KB\n")
+            print(f"✅ {file_size // 1024} KB | ⏱️  {format_time(image_time)}\n")
             success_count += 1
 
         except Exception as e:
-            print(f"❌ Error: {str(e)}\n")
+            image_time = time.time() - image_start_time
+            total_image_time += image_time
+            print(f"❌ Error: {str(e)} | ⏱️  {format_time(image_time)}\n")
             error_count += 1
 
     del pipe
@@ -487,6 +520,19 @@ def generate_with_model(model_info, prompts, base_output_dir, device, multi_mode
         torch.cuda.empty_cache()
     elif device == "mps":
         torch.mps.empty_cache()
+
+    model_total_time = time.time() - model_start_time
+
+    # Print timing summary
+    print("="*80)
+    print(f"⏱️  MODEL TIMING SUMMARY: {model_info['name']}")
+    print("="*80)
+    print(f"Total generation time: {format_time(total_image_time)}")
+    print(f"Total cycle time (including loading): {format_time(model_total_time)}")
+    if success_count > 0:
+        avg_time = total_image_time / success_count
+        print(f"Average per image: {format_time(avg_time)}")
+    print("="*80 + "\n")
 
     return success_count, error_count
 
@@ -537,12 +583,12 @@ if __name__ == "__main__":
         print("Image Generator v4.0 - FLUX + Stable Diffusion + Aspect Ratios")
         print("="*80)
         print("\nUsage:")
-        print("  python generate_images_v3.py <prompts.json> [output_dir] [multi]")
+        print("  python generate_images.py <prompts.json> [output_dir] [multi]")
         print("\nExamples:")
-        print("  python generate_images_v3.py food_prompts.json")
-        print("  python generate_images_v3.py food_prompts.json assets/")
-        print("  python generate_images_v3.py food_prompts.json assets/ multi")
-        print("  python generate_images_v3.py sample_poster_prompts.json posters/")
+        print("  python generate_images.py food_prompts.json")
+        print("  python generate_images.py food_prompts.json assets/")
+        print("  python generate_images.py food_prompts.json assets/ multi")
+        print("  python generate_images.py sample_poster_prompts.json posters/")
         print("\nJSON Format:")
         print('  Simple:  {"name": "prompt text"}')
         print('  Advanced: {"name": {"prompt": "text", "aspect_ratio": "portrait", "base_resolution": 1024}}')
