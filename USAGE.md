@@ -6,13 +6,13 @@
 
 ```bash
 # Simple generation with default settings
-python generate_images_v3.py food_prompts.json
+python generate_images.py food_prompts.json
 
 # Specify output directory
-python generate_images_v3.py food_prompts.json output/
+python generate_images.py food_prompts.json output/
 
 # Compare multiple models
-python generate_images_v3.py food_prompts.json output/ multi
+python generate_images.py food_prompts.json output/ multi
 ```
 
 ---
@@ -79,7 +79,7 @@ Ignore JSON aspect ratios and use each model's default resolution. Fastest optio
 
 ### Simple Generation (Beginners)
 ```bash
-python generate_images_v3.py simple_prompts.json output/
+python generate_images.py simple_prompts.json output/
 # When prompted:
 # 1. Select model: 1 (SD v1.5 - fastest, lowest memory)
 # 2. Resolution mode: 3 (Use model defaults - 512x512)
@@ -89,7 +89,7 @@ This generates 5 simple images using the lightweight SD v1.5 model. Perfect for 
 
 ### Generate Food Icons (512x512)
 ```bash
-python generate_images_v3.py food_prompts.json assets/foods/
+python generate_images.py food_prompts.json assets/foods/
 # When prompted:
 # 1. Select model: 2 (FLUX.1-schnell)
 # 2. Resolution mode: 3 (Use model defaults)
@@ -97,7 +97,7 @@ python generate_images_v3.py food_prompts.json assets/foods/
 
 ### Generate with Custom Aspect Ratios
 ```bash
-python generate_images_v3.py sample_poster_prompts.json posters/
+python generate_images.py sample_poster_prompts.json posters/
 # When prompted:
 # 1. Select model: 2 (FLUX.1-schnell)
 # 2. Resolution mode: 1 (Use JSON-defined resolutions)
@@ -112,7 +112,7 @@ This generates the same 5 simple prompts but with different aspect ratios:
 
 ### Compare Multiple Models
 ```bash
-python generate_images_v3.py sample_poster_prompts.json comparison/ multi
+python generate_images.py sample_poster_prompts.json comparison/ multi
 # When prompted:
 # 1. Select models: 2,6,7 (FLUX, Playground, SDXL)
 # 2. Resolution mode: 1 (Use JSON-defined)
@@ -122,7 +122,7 @@ python generate_images_v3.py sample_poster_prompts.json comparison/ multi
 
 ### Override All with Landscape 4K
 ```bash
-python generate_images_v3.py any_prompts.json output/
+python generate_images.py any_prompts.json output/
 # When prompted:
 # 1. Select model: 2 (FLUX.1-schnell)
 # 2. Resolution mode: 2 (Override all)
@@ -169,25 +169,34 @@ Generation speed varies **dramatically** based on:
 
 ### Reference Benchmarks
 
-**Apple M1 Pro 32GB (MPS, ~20GB Free RAM)**:
+**Apple M1 Pro 32GB (MPS, ~20GB Free RAM)** - Actual Test Results:
 | Model | Resolution | Steps | Time | Memory Used |
 |-------|------------|-------|------|-------------|
-| SD v1.5 | 512x512 | 40 | 1-2 min | ~4GB |
-| FLUX.1-schnell | 1024x1024 | 4 | 2-4 min | ~24GB |
-| SDXL Base | 1024x1024 | 30 | 3-5 min | ~12GB |
-| Playground v2.5 | 1024x1024 | 30 | 3-5 min | ~12GB |
+| SD v1.5 | 768x768 | 40 | ~30s | ~4GB |
+| Counterfeit v2.5 | 768x768 | 40 | ~1m 15s | ~4GB |
+| Realistic Vision v5.1 | 768x768 | 40 | ~1m 20s | ~4GB |
+| DreamShaper v8 | 768x768 | 40 | ~1m 20s | ~4GB |
+| Playground v2.5 | 1536x1024 | 30 | ~2-3 min | ~12GB |
+| SDXL Base | 1536x1024 | 30 | ~2-3 min | ~12GB |
+| **FLUX.1-schnell** | 1536x1024 | 4 | **~7-8 min** | ~24GB |
 
-**NVIDIA RTX 3090 24GB (CUDA, ~18GB Free VRAM)**:
+**NVIDIA RTX 3090 24GB (CUDA, ~18GB Free VRAM)** - Estimated:
 | Model | Resolution | Steps | Time | VRAM Used |
 |-------|------------|-------|------|-----------|
 | SD v1.5 | 512x512 | 40 | 10-20s | ~3GB |
-| FLUX.1-schnell | 1024x1024 | 4 | 30-60s | ~20GB |
+| Realistic Vision / DreamShaper | 768x768 | 40 | 20-30s | ~4GB |
 | SDXL Base | 1024x1024 | 30 | 45-90s | ~10GB |
+| Playground v2.5 | 1024x1024 | 30 | 45-90s | ~10GB |
+| **FLUX.1-schnell** | 1024x1024 | 4 | **~2-3 min** | ~20GB |
 
-**CPU-Only (16-core Ryzen, 32GB RAM)**:
+**CPU-Only (16-core Ryzen, 32GB RAM)** - Estimated:
 | Model | Resolution | Steps | Time | RAM Used |
 |-------|------------|-------|------|----------|
 | SD v1.5 | 512x512 | 40 | 5-10 min | ~8GB |
 | SDXL Base | 1024x1024 | 30 | 15-30 min | ~16GB |
 
-> **Note**: Times vary significantly based on prompt complexity, image resolution, available system resources, and background processes. These are rough estimates only.
+> **Important Notes**:
+> - Times vary significantly based on prompt complexity, image resolution, available system resources, and background processes
+> - **FLUX.1-schnell**: Despite using only 4 inference steps, it's the SLOWEST model (~7-8 min on M1 Pro) because each step is computationally intensive
+> - "schnell" refers to the 4-step optimization, not real-world speed - FLUX prioritizes quality over speed
+> - For fastest results, use SD v1.5 (~30s), Counterfeit/Realistic Vision (~1m 15s), or DreamShaper (~1m 20s)
